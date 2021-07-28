@@ -8,6 +8,8 @@ use App\Entity\OrderDetails;
 use App\Form\OrderType;
 use Doctrine\ORM\EntityManager;
 use Doctrine\ORM\EntityManagerInterface;
+use Stripe\Checkout\Session;
+use Stripe\Stripe;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -48,6 +50,7 @@ class OrderController extends AbstractController
 
     /**
      * @Route("/commande/recapitulatif", name="order_recap", methods={"POST"})
+     * @throws \Stripe\Exception\ApiErrorException
      */
     public function add(Cart $cart, Request $request): Response
     {
@@ -88,8 +91,12 @@ class OrderController extends AbstractController
             $order->setIsPaid(0);
 
             $this->entityManager->persist($order);
-            //enregistrer mon produit OrderDetail()
 
+            //stripe
+            $products_for_stripe = [];
+            $YOUR_DOMAIN = 'https://127.0.0.1:8000';
+
+            //enregistrer mon produit OrderDetail()
             foreach ($cart->getFull() as $product)
             {
                 $orderDetails = new OrderDetails();
@@ -100,10 +107,40 @@ class OrderController extends AbstractController
                 $orderDetails ->setTotal($product['product']->getPrix() * ($product['quantity']));
 
                 $this->entityManager->persist($orderDetails);
-            }
-        //on commente pour eviter de surcharger la page  à chaque raffrachissement
-        $this->entityManager->flush();
 
+                $products_for_stripe[] = [
+                    'price_data' => [
+                        'currency' => 'eur',
+                        'unit_amount' => $product['product']->getPrix(),
+                        'product_data' => [
+                            'name' => $product['product']->getName(),
+                            'images' => [$YOUR_DOMAIN."/uploads/".$product['product']->getIllustration()],
+                            ],
+
+                    ],
+                    'quantity' => $product['quantity'],];
+            }
+            //dd($products_for_stripe);
+
+
+            //$this->entityManager->flush();//on commente pour eviter de surcharger la page  à chaque raffrachissement
+
+            //Gestion de Stripe
+            Stripe::setApiKey('sk_test_51JI75WFC3ueao0OhpkCnhW81xCzQrxv5D7bpo7IvhvmYmyfibUijsKPOJhHJAstbTtfjRfiZeumRjsfboMrTE4Cn00K5ArHYQl');
+
+            $checkout_session = Session::create([
+
+                'payment_method_types' => ['card'],
+                'line_items' => [
+                    $products_for_stripe
+                ],
+                'mode'=> 'payment',
+                'success_url'=> $YOUR_DOMAIN . '/success.html',
+                'cancel_url'=> $YOUR_DOMAIN . '/cancel.html',
+            ]);
+
+            dump($checkout_session->id);
+            dd($checkout_session);
             return $this->render('order/add.html.twig', [
 
                 'cart' =>$cart->getFull(),
