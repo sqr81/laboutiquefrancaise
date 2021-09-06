@@ -22,7 +22,7 @@ class RegisterType extends AbstractType
                 'label' => 'Votre prénom',
                 'constraints' => new length([
                     'min' => 1,
-                    'max' => 30,
+                    'max' => 55,
                 ]),
                 'attr' => [
                     'placeholder' =>  'Merci de saisir votre prénom'

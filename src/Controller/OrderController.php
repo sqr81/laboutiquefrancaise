@@ -8,8 +8,6 @@ use App\Entity\OrderDetails;
 use App\Form\OrderType;
 use Doctrine\ORM\EntityManager;
 use Doctrine\ORM\EntityManagerInterface;
-use Stripe\Checkout\Session;
-use Stripe\Stripe;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -83,6 +81,8 @@ class OrderController extends AbstractController
             //dd($form->getData());
             //enregistrer ma commande Order()
             $order = new Order();
+            $reference = $date->format('dmY').'-'.uniqid();
+            $order->setReference($reference);
             $order->setUser($this->getUser());
             $order->setCreatedAt($date);
             $order->setCarrierName($carriers->getName());
@@ -92,9 +92,7 @@ class OrderController extends AbstractController
 
             $this->entityManager->persist($order);
 
-            //stripe
-            $products_for_stripe = [];
-            $YOUR_DOMAIN = 'https://127.0.0.1:8000';
+
 
             //enregistrer mon produit OrderDetail()
             foreach ($cart->getFull() as $product)
@@ -107,45 +105,15 @@ class OrderController extends AbstractController
                 $orderDetails ->setTotal($product['product']->getPrix() * ($product['quantity']));
 
                 $this->entityManager->persist($orderDetails);
-
-                $products_for_stripe[] = [
-                    'price_data' => [
-                        'currency' => 'eur',
-                        'unit_amount' => $product['product']->getPrix(),
-                        'product_data' => [
-                            'name' => $product['product']->getName(),
-                            'images' => [$YOUR_DOMAIN."/uploads/".$product['product']->getIllustration()],
-                            ],
-
-                    ],
-                    'quantity' => $product['quantity'],];
             }
-            //dd($products_for_stripe);
 
+            $this->entityManager->flush();//on commente pour eviter de surcharger la page  à chaque raffrachissement
 
-            //$this->entityManager->flush();//on commente pour eviter de surcharger la page  à chaque raffrachissement
-
-            //Gestion de Stripe
-            Stripe::setApiKey('sk_test_51JI75WFC3ueao0OhpkCnhW81xCzQrxv5D7bpo7IvhvmYmyfibUijsKPOJhHJAstbTtfjRfiZeumRjsfboMrTE4Cn00K5ArHYQl');
-
-            $checkout_session = Session::create([
-
-                'payment_method_types' => ['card'],
-                'line_items' => [
-                    $products_for_stripe
-                ],
-                'mode'=> 'payment',
-                'success_url'=> $YOUR_DOMAIN . '/success.html',
-                'cancel_url'=> $YOUR_DOMAIN . '/cancel.html',
-            ]);
-
-            dump($checkout_session->id);
-            dd($checkout_session);
             return $this->render('order/add.html.twig', [
-
                 'cart' =>$cart->getFull(),
                 'carrier'=> $carriers,
                 'delivery' => $delivery_content,
+                'reference' => $order->getReference(),
             ]);
         }
 
